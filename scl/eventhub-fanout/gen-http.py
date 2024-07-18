@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 
 """
+Copyright (c) 2024 Novacoast
+
+Use of this source code is governed by an MIT-style
+license that can be found in the LICENSE file or at
+https://opensource.org/licenses/MIT.
+
+Original development by Dan Elder (delder@novacoast.com)
+
 Dynamic syslog-ng configuration script for eventhub-fanout
 """
 
