@@ -1,4 +1,4 @@
-# syslogng-eventhub
+# cloud-fanout Driver
 
 ## Purpose
 
@@ -8,28 +8,28 @@ Using Azure Event Hubs as a syslog-ng destination is possible by using the http 
 
 ### gen-http.py
 
-This is the confgen script used to dynamically create Azure Event Hub destinations and listening sources based off a configuration file. It should be ideally copied to the standard SCL location in it's own directory. To utilize the syslogng-eventhub destination driver, the following steps are needed:
+This is the confgen script used to dynamically create Azure Event Hub destinations and listening sources based off a configuration file. It should be ideally copied to the standard SCL location in it's own directory. To utilize the cloud-fanout destination driver, the following steps are needed:
 1. Install the netifaces Python module (e.g., python3-netifcates if it's not already installed)
-2. Create new SCL directory named eventhub (e.g., /opt/syslog-ng/share/syslog-ng/include/scl/eventhub)
-3. Save plugin.conf to /opt/syslog-ng/share/syslog-ng/include/scl/eventhub/plugin.conf
-4. Save gen-http.py to /opt/syslog-ng/share/syslog-ng/include/scl/eventhub/gen-http.py
-5. Create new eventhub configuration file (e.g., /opt/syslog-ng/etc/eventhub.ini)
+2. Create new SCL directory named cloud-fanout (e.g., /opt/syslog-ng/share/syslog-ng/include/scl/cloud-fanout)
+3. Save plugin.conf to /opt/syslog-ng/share/syslog-ng/include/scl/cloud-fanout/plugin.conf
+4. Save gen-http.py to /opt/syslog-ng/share/syslog-ng/include/scl/cloud-fanout/gen-http.py
+5. Create new cloud-fanout configuration file (e.g., /opt/syslog-ng/etc/cloud-fanout.ini)
 6. Create a new syslog-ng configuration file with the required parameters
 
-The eventhub configuration file should have 3 sections:
+The cloud-fanout configuration file should have 3 sections:
 1. [Countries] - This section should include a 2 letter list of country names and the number of http workers each country should use
 2. [Templates] - This section should include any output templates that will be used
 3. [Individual Source Names] - One or more source definitions that can include:
    1. A port number for incoming connections (mandatory)
    2. A template to use for outgoing messages (must match a definition in the [Templates] section)
-   3. A filter to use for messages (defined outside of the eventhub configuration)
+   3. A filter to use for messages (defined outside of the cloud-fanout configuration)
    4. A multiplier to use for the workers assigned to a destination to optimize performance (for higher or lower volume destinations)
    5. Whether to create a local log (file) for the destination (useful for debug purposes but disabled in container environments) as either true or false (local_log)
    6. An address (or comma separated list of interfaces) to bind to. The first interface in the list which resolves to an addres (or the first address in the list) will be used if specified and if none resolve the global address will be used (0.0.0.0 by default)
    7. An comma separated list of an additional syslog-ng destination(s) (which must be defined elsewhere in your syslog-ng configuration) that logs for this configuration should be sent to
    8. Syslog-ng rewrite rule(s) (which must be defined elsewhere in your syslog-ng configuration) which should be applied to logs for this configuration
 
-As an example, here are reference values for eventhub.ini:
+As an example, here are reference values for cloud-fanout.ini:
 
     [Countries]
     US=5
@@ -65,9 +65,10 @@ As an example, here are reference values for eventhub.ini:
 
 Each log pipeline section must include the name in brackets and a port. A template value may also be specified (the default template will be used if none is defined). One or more filters may also be defined which will immediately follow the source in the resulting syslog-ng configuration.
 
-For the syslog-ng configure file, both the sources and destinations are created through a single decleration for eventhub which requires at least the following configuration options:
+For the syslog-ng configure file, both the sources and destinations are created through a single decleration for cloud-fanout which requires at least the following configuration options:
 
-    eventhub(
+    cloud-fanout(
+        provider() # Cloud provider to use for destination (eventhub is currently supported)
     	url() # URL to Azure Event Hubs
     	headers() # Authorization headers to past for authentication
     	auth_token() # Filepath with Azure auth token in it
@@ -92,7 +93,8 @@ Optional parameters can also be specified to improve performance or alter behavi
 
 As an example, here is a sample configuration: 
 
-    eventhub(
+    cloud-fanout(
+        provider('eventhub')
     	url('https://xxxxxxx.servicebus.windows.net')
     	batch_lines(1000)
     	batch_bytes(1023kb)
@@ -104,7 +106,7 @@ As an example, here is a sample configuration:
     	headers("Authorization: SharedAccessSignature sr=xxxxx.servicebus.windows.net&sig=AUTH_TOKEN&skn=rootSend-syslogNG","Content-Type: application/json","Host: xxxxx.servicebus.windows.net","Country:")
     	tls_verify('no')
     	auth_token('/opt/syslog-ng/etc/eventhub-auth')	
-    	ini('/opt/syslog-ng/etc/eventhub.ini')
+    	ini('/opt/syslog-ng/etc/cloud-fanout.ini')
     	address('eth0,1.2.3.4')
     	disk_dir('/tmp')
     	keyfile('/opt/syslog-ng/etc/cert.d/delder.theelderfamily.org.crt')
@@ -113,6 +115,8 @@ As an example, here is a sample configuration:
     );
 
 ### Driver options
+
+provider - The Cloud provider to be used as a destination (only eventhub is currently supported)
 
 url - The URL to Azure Event Hub
 

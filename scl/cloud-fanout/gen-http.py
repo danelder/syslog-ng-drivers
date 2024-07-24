@@ -9,7 +9,7 @@ https://opensource.org/licenses/MIT.
 
 Original development by Dan Elder (delder@novacoast.com)
 
-Dynamic syslog-ng configuration script for eventhub-fanout
+Dynamic syslog-ng configuration script for cloud-fanout
 """
 
 import argparse
@@ -50,10 +50,6 @@ def interface_address(interface):
 
     return ip_address
 
-
-# Debug log file
-debug_log = "/tmp/eventhub-destinations.log"
-
 # Worker limits and tracking
 MAX_WORKERS = 256
 total_workers = 0
@@ -62,9 +58,33 @@ total_workers = 0
 date_format = "$YEAR$MONTH$DAY"
 
 # Global parser for access by functions
-parser = argparse.ArgumentParser(description='This is a simple tool to convert the one line dictionary into eventhub compatible syslog-ng destinations.')
+parser = argparse.ArgumentParser(description='This is a simple tool to convert the one line dictionary into multiple cloud syslog-ng destinations.')
 parser.add_argument('--debug', help='Enable debug mode', action="store_true")
 args = parser.parse_args()
+
+# Capture environment variables for syslog-ng configuration
+confgen_provider = sanitize(os.environ.get('confgen_provider', "eventhub"))
+confgen_url = sanitize(os.environ.get('confgen_url', ""))
+confgen_batch_lines = sanitize(os.environ.get('confgen_batch_lines', "1000"))
+confgen_batch_bytes = sanitize(os.environ.get('confgen_batch_bytes',"1023kb"))
+confgen_batch_timeout = sanitize(os.environ.get('confgen_batch_timeout', "10000"))
+confgen_headers = os.environ.get('confgen_headers', "")
+confgen_tls_verify = sanitize(os.environ.get('confgen_tls_verify', "yes"))
+confgen_auth_token = sanitize(os.environ.get('confgen_auth_token', ""))
+confgen_ini = sanitize(os.environ.get('confgen_ini', "/opt/syslog-ng/etc/cloud-fanout.ini"))
+confgen_address = sanitize(os.environ.get('confgen_address', "0.0.0.0"))
+confgen_keyfile = sanitize(os.environ.get('confgen_keyfile', ""))
+confgen_certfile = sanitize(os.environ.get('confgen_certfile', ""))
+confgen_rcvbuf = sanitize(os.environ.get('confgen_rcvbuf', "20971520"))
+confgen_fetch_limit = sanitize(os.environ.get('confgen_fetch_limit', "10000"))
+confgen_mem_buf = sanitize(os.environ.get('confgen_mem_buf', "10000"))
+confgen_disk_buf = sanitize(os.environ.get('confgen_disk_buf', "10485760"))
+confgen_disk_dir = sanitize(os.environ.get('confgen_disk_dir', "/tmp"))
+confgen_local_log_path = sanitize(os.environ.get('confgen_local_log_path', ""))
+confgen_container = sanitize(os.environ.get('confgen_container', ""))
+
+# Debug log file
+debug_log = f"/tmp/{confgen_provider}-destinations.log"
 
 # Enable debug logging if requested
 if args.debug:
@@ -78,28 +98,9 @@ if args.debug:
         print(f"Unable to write to {debug_log} : {ex}")
         exit(1)
 
-# Capture environment variables for syslog-ng configuration
-confgen_url = sanitize(os.environ.get('confgen_url', ""))
-confgen_batch_lines = sanitize(os.environ.get('confgen_batch_lines', "1000"))
-confgen_batch_bytes = sanitize(os.environ.get('confgen_batch_bytes',"1023kb"))
-confgen_batch_timeout = sanitize(os.environ.get('confgen_batch_timeout', "10000"))
-confgen_headers = os.environ.get('confgen_headers', "")
-confgen_tls_verify = sanitize(os.environ.get('confgen_tls_verify', "yes"))
-confgen_auth_token = sanitize(os.environ.get('confgen_auth_token', ""))
-confgen_ini = sanitize(os.environ.get('confgen_ini', "/opt/syslog-ng/etc/eventhub.ini"))
-confgen_address = sanitize(os.environ.get('confgen_address', "0.0.0.0"))
-confgen_keyfile = sanitize(os.environ.get('confgen_keyfile', ""))
-confgen_certfile = sanitize(os.environ.get('confgen_certfile', ""))
-confgen_rcvbuf = sanitize(os.environ.get('confgen_rcvbuf', "20971520"))
-confgen_fetch_limit = sanitize(os.environ.get('confgen_fetch_limit', "10000"))
-confgen_mem_buf = sanitize(os.environ.get('confgen_mem_buf', "10000"))
-confgen_disk_buf = sanitize(os.environ.get('confgen_disk_buf', "10485760"))
-confgen_disk_dir = sanitize(os.environ.get('confgen_disk_dir', "/tmp"))
-confgen_local_log_path = sanitize(os.environ.get('confgen_local_log_path', ""))
-confgen_container = sanitize(os.environ.get('confgen_container', ""))
-
 # Diagnostic output if needed
 if args.debug:
+    debug.write(f"confgen_provider environment variable is {confgen_provider}\n")
     debug.write(f"confgen_url environment variable is {confgen_url}\n")
     debug.write(f"confgen_batch_lines environment variable is {confgen_batch_lines}\n")
     debug.write(f"confgen_batch_bytes environment variable is {confgen_batch_bytes}\n")
