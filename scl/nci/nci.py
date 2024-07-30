@@ -311,6 +311,9 @@ class DedupAlerts(object):
         syslog_timestamp = log_message['S_ISODATE']
         message = log_message['MESSAGE']
 
+        # Message hasn't been filtered out
+        filtered = False
+
         # Convert bytes to strings if needed
         if isinstance(syslog_timestamp, bytes):
             syslog_timestamp = syslog_timestamp.decode("utf-8")
@@ -322,9 +325,6 @@ class DedupAlerts(object):
 
             # Check for matching pattern in message
             if alert['pattern_regex'].search(message):
-
-                # Message hasn't been filtered
-                filtered = False
 
                 # Check for filtered pattern matching in message
                 if "filter_pattern_regex" in alert and alert['filter_pattern_regex'].search(message):
