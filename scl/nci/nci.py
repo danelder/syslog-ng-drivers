@@ -185,6 +185,16 @@ class DedupAlerts(object):
                     timestamp_format = parser.get(configuration, "timestamp_format", fallback=False)
                     custom_field = parser.get(configuration, "custom_field", fallback=False)
 
+                    # Handle required parameters
+                    if not pattern:
+                        self.logger.critical("pattern is a required parameter for %s", configuration)
+                    if not recipient:
+                        self.logger.critical("recipient is a required parameter for %s", configuration)
+                    if not template:
+                        self.logger.critical("template is a required parameter for %s", configuration)
+                    if not keys:
+                        self.logger.critical("keys is a required parameter for %s", configuration)
+
                     # Don't let slow/broken DNS break the driver
                     if use_dns:
                         socket.setdefaulttimeout(10)
@@ -311,6 +321,9 @@ class DedupAlerts(object):
         syslog_timestamp = log_message['S_ISODATE']
         message = log_message['MESSAGE']
 
+        # Message hasn't been filtered out
+        filtered = False
+
         # Convert bytes to strings if needed
         if isinstance(syslog_timestamp, bytes):
             syslog_timestamp = syslog_timestamp.decode("utf-8")
@@ -322,9 +335,6 @@ class DedupAlerts(object):
 
             # Check for matching pattern in message
             if alert['pattern_regex'].search(message):
-
-                # Message hasn't been filtered
-                filtered = False
 
                 # Check for filtered pattern matching in message
                 if "filter_pattern_regex" in alert and alert['filter_pattern_regex'].search(message):
@@ -422,17 +432,16 @@ class DedupAlerts(object):
                 for value in alert['keys'].split(','):
                     # Ensure metadata[value] exists or deinit it if it doesn't
                     if value not in metadata:
-                        error = f"{value} is not a valid message field for use as a unique key in {self.alerts_ini}"
+                        error = f"{value} is not a valid field from {alert['name']} for use as a unique key in {self.alerts_ini} for {message}"
                         message = MIMEMultipart()
                         message["From"] = self.test_recipient
                         message["To"] = self.sender
-                        message["Subject"] = "Critical Syslog-ng Dedup Alert Engine"
+                        message["Subject"] = "Key Error in Syslog-ng Dedup Alert Engine"
                         message.attach( MIMEText(error))
                         self.email_alert(self.test_recipient, message)
-                        self.logger.critical(error)
+                        self.logger.error(error)
                         self.dropped = self.dropped + 1
-                        self.deinit()
-                        exit(1)
+                        return self.SUCCESS
                     # Ensure metadata[value] isn't empty
                     if not metadata[value]:
                         self.logger.warning("Field %s not found for uniqueness key in %s", value, message)
@@ -445,11 +454,11 @@ class DedupAlerts(object):
                 
                 # Ensure we have a usable key
                 if key == "":
-                    error = f"Invalid fields specified for keys, please check the Keys configuration in {self.alerts_ini}"
+                    error = f"Invalid field(s) specified for keys in {alert['name']}, please check the Keys configuration in {self.alerts_ini} for {message}"
                     message = MIMEMultipart()
                     message["From"] = self.test_recipient
                     message["To"] = self.sender
-                    message["Subject"] = "Critical Syslog-ng Dedup Alert Engine"
+                    message["Subject"] = "Critical Key Error in Syslog-ng Dedup Alert Engine"
                     message.attach( MIMEText(error))
                     self.email_alert(self.test_recipient, message)
                     self.logger.critical(error)
