@@ -1,5 +1,5 @@
 """
-Copyright (c) 2024 Novacoast
+Copyright (c) 2024 Pillr
 
 Use of this source code is governed by an MIT-style license that can be found in the LICENSE file or at https://opensource.org/licenses/MIT.
 
@@ -37,7 +37,7 @@ class DedupAlerts(object):
         """
         Validate email connection parameters for sending alerts
         """
-        
+
         message = MIMEMultipart()
 
         message["From"] = self.test_recipient
@@ -158,9 +158,9 @@ class DedupAlerts(object):
             return False
 
         # Read in alerts definitions
-        alerts_ini = options["alerts_ini"]
+        self.alerts_ini = options["alerts_ini"]
         parser = configparser.ConfigParser()
-        parser.read(alerts_ini)
+        parser.read(self.alerts_ini)
 
         try:
             configurations = parser.sections()
@@ -170,6 +170,7 @@ class DedupAlerts(object):
                 try:
                     # Get configuration values from ini
                     pattern = parser.get(configuration, "pattern")
+                    filter_pattern = parser.get(configuration, "filter_pattern", fallback=False)
                     recipient = parser.get(configuration, "recipient")
                     template = parser.get(configuration, "template")
                     keys = parser.get(configuration, "keys")
@@ -203,6 +204,7 @@ class DedupAlerts(object):
                     alert['name'] = configuration
                     alert['recipient'] = recipient
                     alert['pattern'] = pattern
+                    alert['filter_pattern'] = filter_pattern
                     alert['keys'] = keys
                     alert['use_dns'] = use_dns
                     alert['template'] = template
@@ -215,6 +217,9 @@ class DedupAlerts(object):
                     # Compile regex for performance
                     pattern_regex = re.compile(pattern)
                     alert['pattern_regex'] = pattern_regex
+                    if filter_pattern:
+                        filter_pattern_regex = re.compile(filter_pattern)
+                        alert['filter_pattern_regex'] = filter_pattern_regex
                     if user:
                         user_regex = re.compile(user)
                         alert['user_regex'] = user_regex
@@ -239,7 +244,7 @@ class DedupAlerts(object):
                     return False
 
         except Exception as ex:
-            self.logger.error("Error parsing %s : %s", alerts_ini, ex)
+            self.logger.error("Error parsing %s : %s", self.alerts_ini, ex)
             return False
 
         return True
@@ -315,7 +320,17 @@ class DedupAlerts(object):
         # Check every alert in the watchlist against this log
         for alert in self.watchlist:
 
+            # Check for matching pattern in message
             if alert['pattern_regex'].search(message):
+
+                # Message hasn't been filtered
+                filtered = False
+
+                # Check for filtered pattern matching in message
+                if "filter_pattern_regex" in alert and alert['filter_pattern_regex'].search(message):
+                    # Ignore this log message
+                    filtered = True
+                    break
 
                 # Create new metadata object
                 metadata = {}
@@ -372,39 +387,75 @@ class DedupAlerts(object):
                     metadata['FULLHOST'] = metadata['FULLHOST'].decode("utf-8")
                 if isinstance(metadata['FULLHOST_FROM'], bytes):
                     metadata['FULLHOST_FROM'] = metadata['FULLHOST_FROM'].decode("utf-8")
-
+                
                 # Use received time as default timestamp
                 metadata['alert_date'] = datetime.datetime.strptime(syslog_timestamp, "%Y-%m-%dT%H:%M:%S%z")
 
                 # Extract timestamp from event if available and convert to datetime
                 raw_timestamp = ""
-                try:
-                    # Extract timestamp from message if possible
-                    timestamp_match = alert['timestamp_regex'].search(message)
-                    if timestamp_match:
-                        raw_timestamp = timestamp_match.group(1)
+                if "timestamp_regex" in alert:
+                    try:
+                        # Extract timestamp from message if possible
+                        timestamp_match = alert['timestamp_regex'].search(message)
+                        if timestamp_match:
+                            raw_timestamp = timestamp_match.group(1)
 
-                        # If the format of the timestamp has already been defined
-                        if alert['timestamp_format']:
-                            # Convert the timestamp using the defined timestamp format
-                            metadata['alert_date'] = datetime.datetime.strptime(raw_timestamp, alert['timestamp_format'])
-                        else:
-                            # Convert string timezone to UTC hourly offset if possible
-                            raw_timestamp = self.tzconvert(raw_timestamp)
-                            # Convert to datetime format using dateutil
-                            metadata['alert_date'] = parser.parse(raw_timestamp)
+                            # If the format of the timestamp has already been defined
+                            if alert['timestamp_format']:
+                                # Convert the timestamp using the defined timestamp format
+                                metadata['alert_date'] = datetime.datetime.strptime(raw_timestamp, alert['timestamp_format'])
+                            else:
+                                # Convert string timezone to UTC hourly offset if possible
+                                raw_timestamp = self.tzconvert(raw_timestamp)
+                                # Convert to datetime format using dateutil
+                                metadata['alert_date'] = parser.parse(raw_timestamp)
 
-                except Exception as ex:
-                    self.logger.debug("Invalid timestamp (%s) in %s : %s", raw_timestamp, message, ex)
-                    metadata['alert_date'] = datetime.datetime.strptime(syslog_timestamp, "%Y-%m-%dT%H:%M:%S%z")
+                    except Exception as ex:
+                        self.logger.debug("Invalid timestamp (%s) in %s : %s", raw_timestamp, message, ex)
+                        metadata['alert_date'] = datetime.datetime.strptime(syslog_timestamp, "%Y-%m-%dT%H:%M:%S%z")
                 
                 # Convert to unix timestamp from datetime
                 timestamp = int(metadata['alert_date'].timestamp())
-              
+
                 # Build unique key for deduping alerts from keys fields
                 key = ""
                 for value in alert['keys'].split(','):
-                    key = key + str(metadata[value]) + "-"
+                    # Ensure metadata[value] exists or deinit it if it doesn't
+                    if value not in metadata:
+                        error = f"{value} is not a valid message field for use as a unique key in {self.alerts_ini}"
+                        message = MIMEMultipart()
+                        message["From"] = self.test_recipient
+                        message["To"] = self.sender
+                        message["Subject"] = "Critical Syslog-ng Dedup Alert Engine"
+                        message.attach( MIMEText(error))
+                        self.email_alert(self.test_recipient, message)
+                        self.logger.critical(error)
+                        self.dropped = self.dropped + 1
+                        self.deinit()
+                        exit(1)
+                    # Ensure metadata[value] isn't empty
+                    if not metadata[value]:
+                        self.logger.warning("Field %s not found for uniqueness key in %s", value, message)
+                    else:
+                        # Ensure metadata[value] is a string
+                        if isinstance(metadata[value], bytes):
+                            metadata[value] = metadata[value].decode("utf-8")
+                        # Concatenate key value(s)
+                        key = key + metadata[value] + "-"
+                
+                # Ensure we have a usable key
+                if key == "":
+                    error = f"Invalid fields specified for keys, please check the Keys configuration in {self.alerts_ini}"
+                    message = MIMEMultipart()
+                    message["From"] = self.test_recipient
+                    message["To"] = self.sender
+                    message["Subject"] = "Critical Syslog-ng Dedup Alert Engine"
+                    message.attach( MIMEText(error))
+                    self.email_alert(self.test_recipient, message)
+                    self.logger.critical(error)
+                    self.dropped = self.dropped + 1
+                    self.deinit()
+                    exit(1)
 
                 # If this type of event has never occured
                 if alert['name'] not in self.events:
@@ -450,8 +501,12 @@ class DedupAlerts(object):
                 return self.SUCCESS
 
         # No matching alert entry found
-        self.logger.debug("No matching alerts for %s", message)
         self.dropped = self.dropped + 1
+
+        # If message wasn't filtered, output debug information for non-matching message
+        if not filtered:
+            self.logger.debug("No matching alerts for %s", message)
+        
         return self.SUCCESS
 
     def insert_timestamp(self, new_alert, new_event, new_timestamp):
@@ -552,37 +607,38 @@ class DedupAlerts(object):
         message["To"] = new_alert['recipient']
 
         # Replace template variables
-        if new_alert['recipient']:
+        if new_alert.get("recipient"):
             body = body.replace('$RECIPIENT', new_alert['recipient'])
-        if new_alert['pattern']:
+        if new_alert.get("pattern"):
             body = body.replace('$PATTERN', new_alert['pattern'])
-        if new_metadata['log_sources']:
+        if new_metadata.get("log_sources"):
             body = body.replace('$LOG_SOURCES', new_metadata['log_sources'])
-        if new_metadata['user']:
+        if new_metadata.get("user"):
             body = body.replace('$USER', new_metadata['user'])
-        if new_metadata['computer']:
+        if new_metadata.get("computer"):
             body = body.replace('$COMPUTER', new_metadata['computer'])
-        if new_metadata['custom_field']:
+        if new_metadata.get("custom_field"):
             body = body.replace('$CUSTOM_FIELD', new_metadata['custom_field'])
-        if new_metadata['alert_date']:
+        if new_metadata.get("alert_date"):
             body = body.replace('$ALERT_TIME', str(new_metadata['alert_date']))
-        if new_alert['high_threshold']:
+        if new_alert.get("high_threshold"):
             body = body.replace('$HIGH_THRESHOLD', str(new_alert['high_threshold']))
-        if new_alert['time_span']:
+        if new_alert.get("time_span"):
             body = body.replace('$TIME_SPAN', str(new_alert['time_span']))
-        if new_alert['reset_time']:
+        if new_alert.get("reset_time"):
             body = body.replace('$RESET_TIME', str(new_alert['reset_time']))
-        if new_event['num_events']:
+        if new_event.get("num_events"):
             body = body.replace('$NUM_EVENTS', str(new_event['num_events']))
-        if new_metadata['LOGHOST']:
+        if new_metadata.get("LOGHOST"):
             body = body.replace('$LOGHOST', str(new_metadata['LOGHOST']))
-        if new_metadata['SOURCEIP']:
+        if new_metadata.get("SOURCEIP"):
             body = body.replace('$SOURCEIP', str(new_metadata['SOURCEIP']))
-        if new_metadata['FULLHOST']:
+        if new_metadata.get("FULLHOST"):
             body = body.replace('$FULLHOST', str(new_metadata['FULLHOST']))
-        if new_metadata['FULLHOST_FROM']:
+        if new_metadata.get("FULLHOST_FROM"):
             body = body.replace('$FULLHOST_FROM', str(new_metadata['FULLHOST_FROM']))
-        body = body.replace('$LOG', new_log)
+        if new_log:
+            body = body.replace('$LOG', new_log)
 
         # Extract subject if it was part of template
         match = re.search("^Subject:\s*(.+?)\n", body)
