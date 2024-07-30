@@ -521,16 +521,18 @@ class DedupAlerts(object):
 
         body = new_alert['template']
 
-        # Loop through the fields to be used for reverse DNS lookups
-        for address_field in new_alert['use_dns'].split(','):
-            # If this field is part of the message metadata
-            if address_field in new_metadata:
-                try:
-                    # Perform reverse DNS lookup
-                    resolved, alias, addresslist = socket.gethostbyaddr(new_metadata[address_field])
-                    new_metadata[address_field] = resolved
-                except Exception as ex:
-                    self.logger.debug("Reverse DNS lookup of %s failed : %s", new_metadata[address_field], ex)
+        # If reverse DNS lookups are enabled
+        if new_alert['use_dns']:
+            # Loop through the fields to be used for reverse DNS lookups
+            for address_field in new_alert['use_dns'].split(','):
+                # If this field is part of the message metadata
+                if address_field in new_metadata:
+                    try:
+                        # Perform reverse DNS lookup
+                        resolved, alias, addresslist = socket.gethostbyaddr(new_metadata[address_field])
+                        new_metadata[address_field] = resolved
+                    except Exception as ex:
+                        self.logger.debug("Reverse DNS lookup of %s failed : %s", new_metadata[address_field], ex)
 
         message = MIMEMultipart()
         message["From"] = self.sender
