@@ -355,7 +355,7 @@ class DedupAlerts(object):
                     metadata['LOGHOST'] = metadata['LOGHOST'].decode("utf-8")
                 if isinstance(metadata['SOURCEIP'], bytes):
                     metadata['SOURCEIP'] = metadata['SOURCEIP'].decode("utf-8")
-                if isinstance(metadata['LOGHOST'], bytes):
+                if isinstance(metadata['FULLHOST'], bytes):
                     metadata['FULLHOST'] = metadata['FULLHOST'].decode("utf-8")
                 if isinstance(metadata['FULLHOST_FROM'], bytes):
                     metadata['FULLHOST_FROM'] = metadata['FULLHOST_FROM'].decode("utf-8")
