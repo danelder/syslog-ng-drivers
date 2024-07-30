@@ -539,21 +539,36 @@ class DedupAlerts(object):
         message["To"] = new_alert['recipient']
 
         # Replace template variables
-        body = body.replace('$RECIPIENT', new_alert['recipient'])
-        body = body.replace('$PATTERN', new_alert['pattern'])
-        body = body.replace('$LOG_SOURCES', new_metadata['log_sources'])
-        body = body.replace('$USER', new_metadata['user'])
-        body = body.replace('$COMPUTER', new_metadata['computer'])
-        body = body.replace('$CUSTOM_FIELD', new_metadata['custom_field'])
-        body = body.replace('$ALERT_TIME', str(new_metadata['alert_date']))
-        body = body.replace('$HIGH_THRESHOLD', str(new_alert['high_threshold']))
-        body = body.replace('$TIME_SPAN', str(new_alert['time_span']))
-        body = body.replace('$RESET_TIME', str(new_alert['reset_time']))
-        body = body.replace('$NUM_EVENTS', str(new_event['num_events']))
-        body = body.replace('$LOGHOST', str(new_metadata['LOGHOST']))
-        body = body.replace('$SOURCEIP', str(new_metadata['SOURCEIP']))
-        body = body.replace('$FULLHOST', str(new_metadata['FULLHOST']))
-        body = body.replace('$FULLHOST_FROM', str(new_metadata['FULLHOST_FROM']))
+        if new_alert['recipient']:
+            body = body.replace('$RECIPIENT', new_alert['recipient'])
+        if new_alert['pattern']:
+            body = body.replace('$PATTERN', new_alert['pattern'])
+        if new_metadata['log_sources']:
+            body = body.replace('$LOG_SOURCES', new_metadata['log_sources'])
+        if new_metadata['user']:
+            body = body.replace('$USER', new_metadata['user'])
+        if new_metadata['computer']:
+            body = body.replace('$COMPUTER', new_metadata['computer'])
+        if new_metadata['custom_field']:
+            body = body.replace('$CUSTOM_FIELD', new_metadata['custom_field'])
+        if new_metadata['alert_date']:
+            body = body.replace('$ALERT_TIME', str(new_metadata['alert_date']))
+        if new_alert['high_threshold']:
+            body = body.replace('$HIGH_THRESHOLD', str(new_alert['high_threshold']))
+        if new_alert['time_span']:
+            body = body.replace('$TIME_SPAN', str(new_alert['time_span']))
+        if new_alert['reset_time']:
+            body = body.replace('$RESET_TIME', str(new_alert['reset_time']))
+        if new_event['num_events']:
+            body = body.replace('$NUM_EVENTS', str(new_event['num_events']))
+        if new_metadata['LOGHOST']:
+            body = body.replace('$LOGHOST', str(new_metadata['LOGHOST']))
+        if new_metadata['SOURCEIP']:
+            body = body.replace('$SOURCEIP', str(new_metadata['SOURCEIP']))
+        if new_metadata['FULLHOST']:
+            body = body.replace('$FULLHOST', str(new_metadata['FULLHOST']))
+        if new_metadata['FULLHOST_FROM']:
+            body = body.replace('$FULLHOST_FROM', str(new_metadata['FULLHOST_FROM']))
         body = body.replace('$LOG', new_log)
 
         # Extract subject if it was part of template
