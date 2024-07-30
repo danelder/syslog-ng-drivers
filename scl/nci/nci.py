@@ -391,7 +391,7 @@ class DedupAlerts(object):
                 # Build unique key for deduping alerts from keys fields
                 key = ""
                 for value in alert['keys'].split(','):
-                    key = key + metadata[value] + "-"
+                    key = key + str(metadata[value]) + "-"
 
                 # If this type of event has never occured
                 if alert['name'] not in self.events:
