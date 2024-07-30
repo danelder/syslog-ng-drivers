@@ -185,6 +185,16 @@ class DedupAlerts(object):
                     timestamp_format = parser.get(configuration, "timestamp_format", fallback=False)
                     custom_field = parser.get(configuration, "custom_field", fallback=False)
 
+                    # Handle required parameters
+                    if not pattern:
+                        self.logger.critical("pattern is a required parameter for %s", configuration)
+                    if not recipient:
+                        self.logger.critical("recipient is a required parameter for %s", configuration)
+                    if not template:
+                        self.logger.critical("template is a required parameter for %s", configuration)
+                    if not keys:
+                        self.logger.critical("keys is a required parameter for %s", configuration)
+
                     # Don't let slow/broken DNS break the driver
                     if use_dns:
                         socket.setdefaulttimeout(10)
