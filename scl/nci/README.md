@@ -163,15 +163,25 @@ A sample configuration for reference:
 #### DedupAlerts options
 
 log_level - What level of logging to output (DEBUG, INFO, WARN, ERROR) from syslog-ng
+
 alerts_ini - Filesystem path to the configuration file defining what events to look for and all other settings for that alert
+
 state_db - Filesystem path to a file (which will be created if necessary) for maintaining the list of events that have been tracked by the driver for using during syslog-ng restart/reload operations (by default state will not be maintained)
+
 stale_hours - How many hours back should events from the state_db be imported on driver startup
+
 mail_sender - Email address to be used when sending email alerts
+
 mail_password - Password for mail_sender account
+
 mail_server - FQDN or IP address of mail server to send email through
+
 mail_encryption - Currently supported options are ssl, starttls, or none (default is none) for connection to mail_server
+
 mail_port - Port to use for communication to mail_server (default is 25)
+
 mail_trust - Whether communication to mail_server requires this system to validate and trust the certificate presented (when mail_encryption is not none)
+
 mail_test_recipient - To validate email configuration, a test message will be sent to this address on driver startup
 
 #### alerts_ini options
@@ -179,23 +189,40 @@ mail_test_recipient - To validate email configuration, a test message will be se
 The file specified for the alerts_ini configuration includes a number of options and can have multiple stanzas. These include:
 
 name - Each configuration must have a unique name (mandatory)
+
 pattern - The regex to be used against a log message to check if it matches this configuration. Whitespace is interpreted as a logical AND for the regex (mandatory)
+
+filter_pattern - An optional regex to be used against log messages which match pattern but which should be filtered out of any alerting. This is useful if you have noise you want to eliminate from alerts (e.g., service accounts which frequently appear but should never be alerted on). (optional)
+
 recipient - The email recipient(s) when an alert is triggered. Multiple email addresses must be separated by a comma (mandatory)
+
 keys - A comma separated list of extracted variable(s) that are used to uniquely identify an event for dedup purposes
+
 use_dns - An optional comma separated list of fields to perform reverse DNS lookups on and substitute for in the email message (default is none)
+
 template - The email template to be used when an alert is triggered including variable substitutions (mandatory)
+
 high_threshold - The number of events at which an alert should be triggered (default is 1)
+
 time_span - The amount of time over which high_threshold events can occur before an alert is triggered in seconds (default is 60)
+
 reset_time - The amount of time before or after the start or end of an alert before a new alert can be sent
+
 timestamp - The regex to be used for extracting a timestamp from the message (optional)
+
 timestamp_format - The timestamp format expression used for conversting the timestamp match to a datetime (if not defined, driver will attempt to autodetect) 
+
 user - The regex to use for extracting a username from an event (optional)
+
 computer - The regex to use for extracting a computer name from an event (optional)
+
 log_sources - The regex to user for extracting the log sources from an event (optional)
+
 custom_field - The regex to user for extracting a custom field from an event (optional)
+
 template - the email template to use when sending messages including the variables to be replaced. If there is a Subject: line in the template, the message subject will be set to the contents of the Subject: line in the template
 
-Referece configuration stanzas (of which there can be multiple in the alerts_ini file):
+Reference configuration stanzas (of which there can be multiple in the alerts_ini file):
 
     [WindowsLockout]
     Pattern=4740 Microsoft-Windows-Security-Auditing
@@ -222,6 +249,28 @@ Referece configuration stanzas (of which there can be multiple in the alerts_ini
         Subsequent alerts will not be sent until $RESET_TIME seconds have passed. There were $NUM_EVENTS alertable events since last alert message.
         Alert Recipients=$RECIPIENT
 
+    [Cisco_IOS_Privileged_Command]
+    Pattern=%%SEC_LOGIN-5-LOGIN_SUCCESS|%%PARSER-5-CFGLOG_LOGGEDCMD|%%SYS-5-CONFIG_I
+    Filter_Pattern=svc_account1|svc_account2
+    Recipient=secops@company.com
+    User=User:(.+?)\s+|\[user:\s+(.+?)\]|Configured\s+from\s+.+?\s+by\s+(.+?)\s+
+    Keys=FULLHOST,user
+    High_Threshold=1
+    Time_Span=3600
+    Reset_Time=3600
+    Use_DNS=FULLHOST
+    Template=Subject: Detected Alert: Cisco IOS Privileged Command by $USER on $FULLHOST
+        Alert=Cisco IOS Privileged Command
+        Device=$FULLHOST
+        User=$USER
+        Message=$LOG
+        Appliance Detecting Alert=$LOGHOST
+        Detection Time=$ALERT_TIME
+        Container/Group Being Monitored=CiscoIOS
+        High threshold: $HIGH_THRESHOLD matches within $TIME_SPAN seconds. 
+        Subsequent alerts will not be sent until $RESET_TIME seconds have passed. 
+        There were $NUM_EVENTS alertable events since the last alert message. 
+        Alert Recipients=$RECIPIENT
 
     [InterfaceDown]
     Pattern=interface\s+\w+\s+down
@@ -235,7 +284,6 @@ Referece configuration stanzas (of which there can be multiple in the alerts_ini
     Template=Subject: Interface $CUSTOM_FIELD down on $SOURCEIP
         Detected pattern $PATTERN
         Log=$LOG
-
 
     [Cisco_IOS_EIGRP_Peer_Graceful_Restart]
     Pattern=EIGRP.+?Peer\s+graceful-restart
