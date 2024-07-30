@@ -432,17 +432,16 @@ class DedupAlerts(object):
                 for value in alert['keys'].split(','):
                     # Ensure metadata[value] exists or deinit it if it doesn't
                     if value not in metadata:
-                        error = f"{value} is not a valid message field for use as a unique key in {self.alerts_ini}"
+                        error = f"{value} is not a valid field from {alert['name']} for use as a unique key in {self.alerts_ini} for {message}"
                         message = MIMEMultipart()
                         message["From"] = self.test_recipient
                         message["To"] = self.sender
-                        message["Subject"] = "Critical Syslog-ng Dedup Alert Engine"
+                        message["Subject"] = "Key Error in Syslog-ng Dedup Alert Engine"
                         message.attach( MIMEText(error))
                         self.email_alert(self.test_recipient, message)
-                        self.logger.critical(error)
+                        self.logger.error(error)
                         self.dropped = self.dropped + 1
-                        self.deinit()
-                        exit(1)
+                        return self.SUCCESS
                     # Ensure metadata[value] isn't empty
                     if not metadata[value]:
                         self.logger.warning("Field %s not found for uniqueness key in %s", value, message)
@@ -455,11 +454,11 @@ class DedupAlerts(object):
                 
                 # Ensure we have a usable key
                 if key == "":
-                    error = f"Invalid fields specified for keys, please check the Keys configuration in {self.alerts_ini}"
+                    error = f"Invalid field(s) specified for keys in {alert['name']}, please check the Keys configuration in {self.alerts_ini} for {message}"
                     message = MIMEMultipart()
                     message["From"] = self.test_recipient
                     message["To"] = self.sender
-                    message["Subject"] = "Critical Syslog-ng Dedup Alert Engine"
+                    message["Subject"] = "Critical Key Error in Syslog-ng Dedup Alert Engine"
                     message.attach( MIMEText(error))
                     self.email_alert(self.test_recipient, message)
                     self.logger.critical(error)
