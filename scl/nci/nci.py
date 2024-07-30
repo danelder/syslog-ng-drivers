@@ -321,28 +321,41 @@ class DedupAlerts(object):
                 metadata = {}
 
                 # Extract and set user from event if available
-                try:
-                    metadata['user'] = alert['user_regex'].search(message).group(1)
-                except:
-                    metadata['user'] = "N/A"
+                if "user_regex" in alert:
+                    try:
+                        # Loop through groups to support OR regex searches
+                        for group in alert['user_regex'].search(message).groups():
+                            if group is not None:
+                                metadata['user'] = group
+                    except:
+                        metadata['user'] = "N/A"
 
                 # Extract and set computer from event if available
-                try:
-                    metadata['computer'] = alert['computer_regex'].search(message).group(1)
-                except:
-                    metadata['computer'] = "N/A"
+                if "computer_regex" in alert:
+                    try:
+                        # Loop through groups to support OR regex searches
+                        for group in alert['computer_regex'].search(message).groups():
+                            metadata['computer'] = group
+                    except:
+                        metadata['computer'] = "N/A"
 
                 # Extract and set log_sources from event if available
-                try:
-                    metadata['log_sources'] = alert['log_sources_regex'].search(message).group(1)
-                except:
-                    metadata['log_sources'] = "N/A"
+                if "log_sources_regex" in alert:
+                    try:
+                        # Loop through groups to support OR regex searches
+                        for group in alert['log_sources'].search(message).groups():
+                            metadata['log_sources'] = group
+                    except:
+                        metadata['log_sources'] = "N/A"
 
                 # Extract and set log_sources from event if available
-                try:
-                    metadata['custom_field'] = alert['custom_field_regex'].search(message).group(1)
-                except:
-                    metadata['custom_field'] = "N/A"
+                if "custom_field_regex" in alert:
+                    try:
+                        # Loop through groups to support OR regex searches
+                        for group in alert['custom_field'].search(message).groups():
+                            metadata['custom_field'] = group
+                    except:
+                        metadata['custom_field'] = "N/A"
 
                 # Set metadata for syslog-ng available macros
                 metadata['LOGHOST'] = log_message['LOGHOST']
