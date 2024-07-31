@@ -104,7 +104,7 @@ class DedupAlerts(object):
         self.sender = "root@localhost"
         if "mail_sender" in options:
             self.sender = options["mail_sender"]
-        
+
         self.password = False
         if "mail_password" in options:
             self.password = options["mail_password"]
@@ -147,7 +147,7 @@ class DedupAlerts(object):
                     self.stale_hours = int(options["stale_hours"])
                 except Exception:
                     self.logger.error("Invalid value for stale_hours: %s", options["stale_hours"])                
-            
+
             # Load previous state from last shutdown
             if not self.load_events():
                 self.logger.error("Error accessing %s for tracking state between restarts", self.state_db)
@@ -397,7 +397,7 @@ class DedupAlerts(object):
                     metadata['FULLHOST'] = metadata['FULLHOST'].decode("utf-8")
                 if isinstance(metadata['FULLHOST_FROM'], bytes):
                     metadata['FULLHOST_FROM'] = metadata['FULLHOST_FROM'].decode("utf-8")
-                
+
                 # Use received time as default timestamp
                 metadata['alert_date'] = datetime.datetime.strptime(syslog_timestamp, "%Y-%m-%dT%H:%M:%S%z")
 
@@ -423,7 +423,7 @@ class DedupAlerts(object):
                     except Exception as ex:
                         self.logger.debug("Invalid timestamp (%s) in %s : %s", raw_timestamp, message, ex)
                         metadata['alert_date'] = datetime.datetime.strptime(syslog_timestamp, "%Y-%m-%dT%H:%M:%S%z")
-                
+
                 # Convert to unix timestamp from datetime
                 timestamp = int(metadata['alert_date'].timestamp())
 
@@ -656,7 +656,7 @@ class DedupAlerts(object):
 
             # Delete subject from body
             body = re.sub(r'^Subject:\s*(.+?)\n', '', body)
-        
+
         # MIME convert and attach message body
         message.attach(MIMEText(body))
 
@@ -679,7 +679,7 @@ class DedupAlerts(object):
             if new_event['timestamps'][counter] > max_stamp or new_event['timestamps'][counter] < min_stamp:
                 # Add it to list of clean timestamps
                 new_timestamps.append(new_event['timestamps'][counter])
-            
+
             # Increment counter to check next value
             counter = counter + 1
 
@@ -740,7 +740,7 @@ class DedupAlerts(object):
 
         # Handle STARTTLS encrypted SMTP
         elif self.encryption.lower() == "starttls":
-                
+
             # Try to setup a secure connection using STARTTLS
             try:
                 server = smtplib.SMTP(self.smtp_server, self.port, context)
