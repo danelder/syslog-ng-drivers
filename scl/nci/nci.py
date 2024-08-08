@@ -264,7 +264,7 @@ class DedupAlerts(object):
 
         self.logger.debug("%i alarms generated (%i events did not generate alarms) out of %i logs", self.processed, self.dropped, self.total)
 
-        self.logger.debug(self.events)
+        #self.logger.debug(f"{self.events}")
 
         # If configured to maintain state between restarts
         if self.state_db:
@@ -559,6 +559,7 @@ class DedupAlerts(object):
             if new_timestamp >= alarm - new_alert['time_span']:
                 if new_timestamp <= alarm + new_alert['reset_time']:
                     # This event falls within an existing alarm window
+                    #self.logger.debug(f"Event {new_event} within alarm {alarm} : {new_timestamp}")
                     return new_event, False
 
         # Events that should be alerted on for a single occurrence
@@ -566,17 +567,18 @@ class DedupAlerts(object):
 
             # Make sure this isn't a duplicate based on timestamp
             if new_timestamp in new_event['alarms']:
-                self.logger.debug("Duplicate event timestamp detected for %s", new_event)
+                #self.logger.debug(f"Duplicate event timestamp detected for {new_event}")
                 return new_event, False
             new_event['alarms'].append(new_timestamp)
             return new_event, True
 
         # Events that should be alerted on for multiple occurrences
         else:
-            # Add timestamp to list
+            # Add timestamp to list and sort them
             new_event['timestamps'].append(new_timestamp)
             new_event['timestamps'].sort()
             timestamps = len(new_event['timestamps'])
+            #self.logger.debug(f"Processing event {new_event} for alert {new_alert['name']}")
 
             # If there aren't enough events to trigger an alarm
             if timestamps < new_alert['high_threshold']:
@@ -720,6 +722,7 @@ class DedupAlerts(object):
             # Replace timestamps with trimmed list of timestamps
             new_event['timestamps'] = new_timestamps
             self.logger.debug("Trimmed %i timestamps after alert generation", initial_timestamps - len(new_timestamps))
+            #self.logger.debug(f"Event is now {new_event}")
 
         # Return message and cleaned up event
         return message, new_event
@@ -733,7 +736,7 @@ class DedupAlerts(object):
         # Convert comma separated string to list
         recipients = recipient.split(',')
 
-        self.logger.debug(f"Sending email to {recipient}: {message.as_string()}")
+        self.logger.debug("Sending email to %s: %s", recipient, message.as_string())
 
         # If no encryption should be used
         if not self.encryption:
@@ -882,7 +885,7 @@ class DedupAlerts(object):
                     self.events[category][event]['timestamps'] = new_timestamps
                     self.events[category][event]['alarms'] = new_alarms
 
-                    self.logger.debug("Alert %s for key %s triggered on: %s", category, event, new_alarms)
+                    #self.logger.debug(f"Alert {category} for key {event} triggered on: {new_alarms}")
 
             # Track which events should be purged
             purge_list[category] = purge_events
@@ -890,7 +893,7 @@ class DedupAlerts(object):
         # Purge keys and associated events from state that are no longer needed
         for category in purge_list:
             for event in purge_list[category]:
-                self.logger.debug("Purging key %s in category %s", event, category)
+                #self.logger.debug(f"Purging key {event} in category {category}")
                 self.events[category].pop(event)
 
         # Compile statistics of internal state for debug output
@@ -908,7 +911,7 @@ class DedupAlerts(object):
         self.logger.info("Imported %i events with %i timestamps (%i timestamps and %i alerts discarded due to age) with %i alarms",\
                          events_count, timestamp_count, purged_timestamps, purged_alarms, alarm_count)
 
-        self.logger.debug(self.events)
+        #self.logger.debug(f"{self.events}")
 
         return True
 
