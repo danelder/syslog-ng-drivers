@@ -206,19 +206,19 @@ high_threshold - The number of events at which an alert should be triggered (def
 
 time_span - The amount of time over which high_threshold events can occur before an alert is triggered in seconds (default is 60)
 
-reset_time - The amount of time before or after the start or end of an alert before a new alert can be sent
+reset_time - The amount of time before or after an alert before a new alert can be sent (new events within reset_time of an alert will be ignored)
 
-timestamp - The regex to be used for extracting a timestamp from the message (optional)
+timestamp - The regex to be used for extracting a timestamp from the message. Multiple regexes can be combined with | and the first match will be used (optional)
 
 timestamp_format - The timestamp format expression used for conversting the timestamp match to a datetime (if not defined, driver will attempt to autodetect) 
 
-user - The regex to use for extracting a username from an event (optional)
+user - The regex to use for extracting a username from an event. Multiple regexes can be combined with | and the first match will be used (optional)
 
-computer - The regex to use for extracting a computer name from an event (optional)
+computer - The regex to use for extracting a computer name from an event. Multiple regexes can be combined with | and the first match will be used (optional)
 
-log_sources - The regex to user for extracting the log sources from an event (optional)
+log_sources - The regex to user for extracting the log sources from an event. Multiple regexes can be combined with | and the first match will be used (optional)
 
-custom_field - The regex to user for extracting a custom field from an event (optional)
+custom_field - The regex to user for extracting a custom field from an event. Multiple regexes can be combined with | and the first match will be used (optional)
 
 template - the email template to use when sending messages including the variables to be replaced. If there is a Subject: line in the template, the message subject will be set to the contents of the Subject: line in the template
 
@@ -308,7 +308,7 @@ Reference configuration stanzas (of which there can be multiple in the alerts_in
 
     [Cisco_IOS_EIGRP_Peer_Restarted]
     Pattern=EIGRP.+?peer\s+restarted
-    Recipient=delder@novacaost.com
+    Recipient=netops@company.com,secops@company.com
     Timestamp=:\s+(\w\w\w\s+\d+\s+\d+:\d+:\d+\.\d+\s+.+?):
     Computer=Neighbor\s+(\d+\.\d+\.\d+\.\d+)
     Keys=SOURCEIP,computer
@@ -327,6 +327,51 @@ Reference configuration stanzas (of which there can be multiple in the alerts_in
         High threshold: $HIGH_THRESHOLD matches within $TIME_SPAN seconds. 
         Subsequent alerts will not be sent until $RESET_TIME seconds have passed. 
         There were $NUM_EVENTS alertable events since the last alert message. 
+        Alert Recipients=$RECIPIENT
+
+    [Cisco_IOS_Privileged_Command]
+    Pattern=%%SEC_LOGIN-5-LOGIN_SUCCESS|%%SYS-5-CONFIG_I
+    Filter_Pattern=svc_account1|netops_account1|svc_account2
+    Recipient=netops@company.com,secops@company.com
+    Timestamp=(\w\w\w\s+\d+\s+\d+:\d+:\d+\.\d+\s+.+?):|at\s+(\d+:\d+:\d+\s+.+?\s+\w+\s+\w+\s+\d+\s+\d+)|(\w+\s+\d+\s+\d+:\d+:\d+\.\d+):
+    User=User:(.+?)\s+|\[user:\s+(.+?)\]|Configured\s+from\s+.+?\s+by\s+(.+?)\s+
+    Keys=FULLHOST,user
+    High_Threshold=1
+    Time_Span=3600
+    Reset_Time=3600
+    Use_DNS=FULLHOST
+    Template=Subject: Detected Alert: Cisco IOS Privileged Command by $USER on $FULLHOST
+        Alert=Cisco IOS Privileged Command
+        Device=$FULLHOST
+        User=$USER
+        Message=$LOG
+        Appliance Detecting Alert=$LOGHOST
+        Detection Time=$ALERT_TIME
+        Container/Group Being Monitored=CiscoIOS
+        High threshold: $HIGH_THRESHOLD matches within $TIME_SPAN seconds. 
+        Subsequent alerts will not be sent until $RESET_TIME seconds have passed. 
+        There were $NUM_EVENTS events since the last alert message. 
+        Alert Recipients=$RECIPIENT
+
+    [Cisco_IOS_Privileged_CFGLOG_Command]
+    Pattern=%%PARSER-5-CFGLOG_LOGGEDCMD
+    Filter_Pattern=svc_account1|netops_account1|svc_account2
+    Recipient=netops@company.com,secops@company.com
+    Timestamp=(\w\w\w\s+\d+\s+\d+:\d+:\d+\.\d+\s+.+?):
+    User=User:(.+?)\s+|\[user:\s+(.+?)\]|Configured\s+from\s+.+?\s+by\s+(.+?)\s+
+    Keys=FULLHOST,user
+    High_Threshold=1
+    Time_Span=1
+    Reset_Time=1
+    Use_DNS=FULLHOST
+    Template=Subject: Detected Alert: Cisco IOS Privileged Configuration Command by $USER on $FULLHOST
+        Alert=Cisco IOS Privileged Configuration Command
+        Device=$FULLHOST
+        User=$USER
+        Message=$LOG
+        Appliance Detecting Alert=$LOGHOST
+        Detection Time=$ALERT_TIME
+        Container/Group Being Monitored=CiscoIOS
         Alert Recipients=$RECIPIENT
 
 In the email template configuration, the following substitutions are available which will replace the variable before sending the message:
