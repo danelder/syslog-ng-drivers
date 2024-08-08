@@ -18,14 +18,10 @@ import datetime
 import smtplib
 import ssl
 import pickle
-import os
 import socket
-from dateutil import parser
-from email import encoders
 from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
-from email.utils import formatdate
+from dateutil import parser
 import syslogng
 
 class DedupAlerts(object):
@@ -51,11 +47,6 @@ class DedupAlerts(object):
             return False
 
         return True
-
-
-    def close(self):
-        """Close the connection to the target service"""
-        pass
 
 
     def init(self, options):
@@ -146,7 +137,7 @@ class DedupAlerts(object):
                 try:
                     self.stale_hours = int(options["stale_hours"])
                 except Exception:
-                    self.logger.error("Invalid value for stale_hours: %s", options["stale_hours"])                
+                    self.logger.error("Invalid value for stale_hours: %s", options["stale_hours"])
 
             # Load previous state from last shutdown
             if not self.load_events():
@@ -543,7 +534,7 @@ class DedupAlerts(object):
         # If message wasn't filtered, output debug information for non-matching message
         if not filtered:
             self.logger.debug("No matching alerts for %s", message)
-        
+
         return self.SUCCESS
 
     def insert_timestamp(self, new_alert, new_event, new_timestamp):
@@ -617,7 +608,7 @@ class DedupAlerts(object):
                 high = new_event['timestamps'][min_timestamp_index + new_alert['high_threshold'] - 1]
                 if high - low <= new_alert['time_span']:
                     return new_event, True
-                
+
                 # Incriment min_timestamp_index position
                 min_timestamp_index = min_timestamp_index + 1
 
