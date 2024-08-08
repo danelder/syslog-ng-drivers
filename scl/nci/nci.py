@@ -192,8 +192,6 @@ class DedupAlerts(object):
                         self.logger.critical("recipient is a required parameter for %s", configuration)
                     if not template:
                         self.logger.critical("template is a required parameter for %s", configuration)
-                    if not keys:
-                        self.logger.critical("keys is a required parameter for %s", configuration)
 
                     # Don't let slow/broken DNS break the driver
                     if use_dns:
@@ -265,6 +263,8 @@ class DedupAlerts(object):
         """
 
         self.logger.debug("%i alarms generated (%i events did not generate alarms) out of %i logs", self.processed, self.dropped, self.total)
+
+        self.logger.debug(self.events)
 
         # If configured to maintain state between restarts
         if self.state_db:
@@ -406,19 +406,26 @@ class DedupAlerts(object):
                 if "timestamp_regex" in alert:
                     try:
                         # Extract timestamp from message if possible
-                        timestamp_match = alert['timestamp_regex'].search(message)
-                        if timestamp_match:
-                            raw_timestamp = timestamp_match.group(1)
+                        match = alert['timestamp_regex'].search(message)
+                        if match is not None:
+                            # Loop through all match groups for OR timestamp regex matching
+                            for raw_timestamp in match.groups():
+                                if raw_timestamp:
 
-                            # If the format of the timestamp has already been defined
-                            if alert['timestamp_format']:
-                                # Convert the timestamp using the defined timestamp format
-                                metadata['alert_date'] = datetime.datetime.strptime(raw_timestamp, alert['timestamp_format'])
-                            else:
-                                # Convert string timezone to UTC hourly offset if possible
-                                raw_timestamp = self.tzconvert(raw_timestamp)
-                                # Convert to datetime format using dateutil
-                                metadata['alert_date'] = parser.parse(raw_timestamp)
+                                    # If the format of the timestamp has already been defined
+                                    if alert['timestamp_format']:
+                                        # Convert the timestamp using the defined timestamp format
+                                        metadata['alert_date'] = datetime.datetime.strptime(raw_timestamp, alert['timestamp_format'])
+                                    else:
+                                        # Convert string timezone to UTC hourly offset if possible
+                                        raw_timestamp = self.tzconvert(raw_timestamp)
+                                        # Convert to datetime format using dateutil
+                                        metadata['alert_date'] = parser.parse(raw_timestamp)
+
+                                    # Valid timestamp found, no need to search for more
+                                    break
+                        else:
+                            self.logger.debug("No matching timestamps found %s", message)
 
                     except Exception as ex:
                         self.logger.debug("Invalid timestamp (%s) in %s : %s", raw_timestamp, message, ex)
@@ -427,77 +434,98 @@ class DedupAlerts(object):
                 # Convert to unix timestamp from datetime
                 timestamp = int(metadata['alert_date'].timestamp())
 
-                # Build unique key for deduping alerts from keys fields
-                key = ""
-                for value in alert['keys'].split(','):
-                    # Ensure metadata[value] exists or deinit it if it doesn't
-                    if value not in metadata:
-                        error = f"{value} is not a valid field from {alert['name']} for use as a unique key in {self.alerts_ini} for {message}"
+                # Start with assumption that event doesn't trigger an alert
+                alertable = False
+
+                # If we should alert on every event
+                alert_always = False
+                if alert['keys'] == "" or alert['reset_time'] == 0:
+                    alert_always = True
+
+                # If we need to compare alert against timeline of alerts
+                else:
+                    # Build unique key for deduping alerts from keys fields
+                    key = ""
+                    for value in alert['keys'].split(','):
+                        # Ensure metadata[value] exists or deinit it if it doesn't
+                        if value not in metadata:
+                            error = f"{value} is not a valid field from {alert['name']} for use as a unique key in {self.alerts_ini} for {message}"
+                            message = MIMEMultipart()
+                            message["From"] = self.test_recipient
+                            message["To"] = self.sender
+                            message["Subject"] = "Key Error in Syslog-ng Dedup Alert Engine"
+                            message.attach( MIMEText(error))
+                            self.email_alert(self.test_recipient, message)
+                            self.logger.error(error)
+                            self.dropped = self.dropped + 1
+                            return self.SUCCESS
+                        # Ensure metadata[value] isn't empty
+                        if not metadata[value]:
+                            self.logger.warning("Field %s not found for uniqueness key in %s", value, message)
+                        else:
+                            # Ensure metadata[value] is a string
+                            if isinstance(metadata[value], bytes):
+                                metadata[value] = metadata[value].decode("utf-8")
+                            # Concatenate key value(s)
+                            key = key + metadata[value] + "-"
+
+                    # Ensure we have a usable key if required
+                    if key == "":
+                        error = f"Invalid field(s) specified for keys in {alert['name']}, please check the Keys configuration in {self.alerts_ini} for {message}"
                         message = MIMEMultipart()
                         message["From"] = self.test_recipient
                         message["To"] = self.sender
-                        message["Subject"] = "Key Error in Syslog-ng Dedup Alert Engine"
+                        message["Subject"] = "Critical Key Error in Syslog-ng Dedup Alert Engine"
                         message.attach( MIMEText(error))
                         self.email_alert(self.test_recipient, message)
-                        self.logger.error(error)
+                        self.logger.critical(error)
                         self.dropped = self.dropped + 1
-                        return self.SUCCESS
-                    # Ensure metadata[value] isn't empty
-                    if not metadata[value]:
-                        self.logger.warning("Field %s not found for uniqueness key in %s", value, message)
+                        self.deinit()
+                        exit(1)
+
+                    # If this type of event has never occured
+                    if alert['name'] not in self.events:
+                        self.events[alert['name']] = {}
+
+                    # If this type of event for this key has occured
+                    if key in self.events[alert['name']]:
+                        event = self.events[alert['name']][key]
+
+                    # If this type of event for this key has never occured
                     else:
-                        # Ensure metadata[value] is a string
-                        if isinstance(metadata[value], bytes):
-                            metadata[value] = metadata[value].decode("utf-8")
-                        # Concatenate key value(s)
-                        key = key + metadata[value] + "-"
-                
-                # Ensure we have a usable key
-                if key == "":
-                    error = f"Invalid field(s) specified for keys in {alert['name']}, please check the Keys configuration in {self.alerts_ini} for {message}"
-                    message = MIMEMultipart()
-                    message["From"] = self.test_recipient
-                    message["To"] = self.sender
-                    message["Subject"] = "Critical Key Error in Syslog-ng Dedup Alert Engine"
-                    message.attach( MIMEText(error))
-                    self.email_alert(self.test_recipient, message)
-                    self.logger.critical(error)
-                    self.dropped = self.dropped + 1
-                    self.deinit()
-                    exit(1)
+                        event = {}
+                        event['timestamps'] = []
+                        event['num_events'] = 0
+                        event['alarms'] = []
+                        self.events[alert['name']][key] = event
 
-                # If this type of event has never occured
-                if alert['name'] not in self.events:
-                    self.events[alert['name']] = {}
+                    # Check if this event should be alertable and cleanup
+                    self.events[alert['name']][key], alertable = self.insert_timestamp(alert, event, timestamp)
 
-                # If this type of event for this key has occured
-                if key in self.events[alert['name']]:
-                    event = self.events[alert['name']][key]
+                # If this is an alertable event
+                if alertable or alert_always:
 
-                # If this type of event for this key has never occured
-                else:
-                    event = {}
-                    event['timestamps'] = []
-                    event['num_events'] = 0
-                    event['alarms'] = []
-                    self.events[alert['name']][key] = event
-
-                # Add timestamp for this event
-                self.events[alert['name']][key], alertable = self.insert_timestamp(alert, event, timestamp)
-
-                # If we this is an alertable event
-                if alertable:
-                    message, temp_event = self.gen_alert(\
-                            new_alert=alert,
-                            new_event=self.events[alert['name']][key],
-                            new_metadata=metadata,
-                            new_timestamp=timestamp,
-                            new_log=message)
+                    # Do not bother with timeline for alert_always events
+                    if alert_always:
+                        message, temp_event = self.gen_alert(\
+                                new_alert=alert,
+                                new_event=None,
+                                new_metadata=metadata,
+                                new_timestamp=timestamp,
+                                new_log=message)
+                    else:
+                        message, temp_event = self.gen_alert(\
+                                new_alert=alert,
+                                new_event=self.events[alert['name']][key],
+                                new_metadata=metadata,
+                                new_timestamp=timestamp,
+                                new_log=message)
 
                     # Send email alert
                     if self.email_alert(alert['recipient'], message):
-                        # Overwrite event with modified (alarmed) event information
-                        self.events[alert['name']][key] = temp_event
+                        # Overwrite event with modified (alarmed) event information if required
+                        if alertable:
+                            self.events[alert['name']][key] = temp_event
                         self.processed = self.processed + 1
                         return self.SUCCESS
                     else:
@@ -530,13 +558,17 @@ class DedupAlerts(object):
         for alarm in new_event['alarms']:
             if new_timestamp >= alarm - new_alert['time_span']:
                 if new_timestamp <= alarm + new_alert['reset_time']:
-
                     # This event falls within an existing alarm window
                     return new_event, False
 
         # Events that should be alerted on for a single occurrence
         if new_alert['high_threshold'] == 1:
-            #self.gen_alert(new_alert, new_event, metadata, new_timestamp, log)
+
+            # Make sure this isn't a duplicate based on timestamp
+            if new_timestamp in new_event['alarms']:
+                self.logger.debug("Duplicate event timestamp detected for %s", new_event)
+                return new_event, False
+            new_event['alarms'].append(new_timestamp)
             return new_event, True
 
         # Events that should be alerted on for multiple occurrences
@@ -560,33 +592,32 @@ class DedupAlerts(object):
             if position + new_alert['high_threshold'] + duplicates <= timestamps:
 
                 # Max timestamp value to evaluate for first entry in list
-                max_timestamp = position + duplicates
+                max_timestamp_index = position + duplicates
 
             else:
                 # Max timestamp  for first entry is at end of list
-                max_timestamp = timestamps - new_alert['high_threshold']
+                max_timestamp_index = timestamps - new_alert['high_threshold']
 
             # If there are more than high_threshold events before this one
             if position - new_alert['high_threshold'] >= 0:
 
                 # Start comparing timestamps high_threshold events before this one
-                min_timestamp = position - new_alert['high_threshold']
+                min_timestamp_index = position - new_alert['high_threshold']
 
             else:
                 # Start comparing timestamps high_threshold events into the list
-                min_timestamp = 0
+                min_timestamp_index = 0
 
-            # Compare the delta between min_timestamp and min_timestamp + high_threshold up to max_timestamp
-            while min_timestamp <= max_timestamp:
+            # Compare the delta between min_timestamp_index and min_timestamp_index + high_threshold up to max_timestamp_index
+            while min_timestamp_index <= position and max_timestamp_index:
                 # If the high timestamp - low timestamp is <= time_span
-                low = new_event['timestamps'][min_timestamp]
-                high = new_event['timestamps'][min_timestamp + new_alert['high_threshold'] - 1]
+                low = new_event['timestamps'][min_timestamp_index]
+                high = new_event['timestamps'][min_timestamp_index + new_alert['high_threshold'] - 1]
                 if high - low <= new_alert['time_span']:
-                    #gen_alert(new_alert, new_event, metadata, new_timestamp, log)
                     return new_event, True
                 
-                # Incriment min_timestamp position
-                min_timestamp = min_timestamp + 1
+                # Incriment min_timestamp_index position
+                min_timestamp_index = min_timestamp_index + 1
 
         # No alert to generate
         return new_event, False
@@ -636,7 +667,7 @@ class DedupAlerts(object):
             body = body.replace('$TIME_SPAN', str(new_alert['time_span']))
         if new_alert.get("reset_time"):
             body = body.replace('$RESET_TIME', str(new_alert['reset_time']))
-        if new_event.get("num_events"):
+        if new_event is not None and new_event.get("num_events"):
             body = body.replace('$NUM_EVENTS', str(new_event['num_events']))
         if new_metadata.get("LOGHOST"):
             body = body.replace('$LOGHOST', str(new_metadata['LOGHOST']))
@@ -660,32 +691,35 @@ class DedupAlerts(object):
         # MIME convert and attach message body
         message.attach(MIMEText(body))
 
-        # Reset event counter
-        new_event['num_events'] = 0
+        # Cleanup timestamps if required
+        if new_event is not None:
 
-        # Add this alarm to all alarms for event
-        new_event['alarms'].append(new_timestamp)
+            # Reset event counter
+            new_event['num_events'] = 0
 
-        # Clean list of timestamps to copy to
-        new_timestamps = []
-        initial_timestamps = len(new_event['timestamps'])
+            # Add this alarm to all alarms for event
+            new_event['alarms'].append(new_timestamp)
 
-        # For all event timestamps within time_span of new_timestamp plus reset_time
-        counter = 0
-        min_stamp = new_timestamp - new_alert['time_span']
-        max_stamp = new_timestamp + new_alert['reset_time']
-        while counter < len(new_event['timestamps']):
-            # If this timestamp falls within outside the alarm window
-            if new_event['timestamps'][counter] > max_stamp or new_event['timestamps'][counter] < min_stamp:
-                # Add it to list of clean timestamps
-                new_timestamps.append(new_event['timestamps'][counter])
+            # Clean list of timestamps to copy to
+            new_timestamps = []
+            initial_timestamps = len(new_event['timestamps'])
 
-            # Increment counter to check next value
-            counter = counter + 1
+            # For all event timestamps within time_span of new_timestamp plus reset_time
+            counter = 0
+            min_stamp = new_timestamp - new_alert['time_span']
+            max_stamp = new_timestamp + new_alert['reset_time']
+            while counter < len(new_event['timestamps']):
+                # If this timestamp falls outside the alarm window
+                if new_event['timestamps'][counter] > max_stamp or new_event['timestamps'][counter] < min_stamp:
+                    # Add it to list of clean timestamps
+                    new_timestamps.append(new_event['timestamps'][counter])
 
-        # Replace timestamps with trimmed list of timestamps
-        new_event['timestamps'] = new_timestamps
-        self.logger.debug("Trimmed %i timestamps after alert generation", initial_timestamps - len(new_timestamps))
+                # Increment counter to check next value
+                counter = counter + 1
+
+            # Replace timestamps with trimmed list of timestamps
+            new_event['timestamps'] = new_timestamps
+            self.logger.debug("Trimmed %i timestamps after alert generation", initial_timestamps - len(new_timestamps))
 
         # Return message and cleaned up event
         return message, new_event
@@ -797,10 +831,11 @@ class DedupAlerts(object):
             return False
 
         # Internal counters
-        event_counter = 0
-        timestamp_counter = 0
-        purged_events = 0
-        alarm_count = 0
+        alarm_counter = 0
+        purged_timestamps = 0
+        purged_alarms = 0
+        purge_list = {}
+        purge_events = []
 
         # Calculate time delta for maximum age of events to track
         current_time = datetime.datetime.utcnow()
@@ -809,22 +844,72 @@ class DedupAlerts(object):
 
         # Loop through every event from state_db and check timestamps against limit
         for category in self.events:
+
+            # List of events that can be purged
+            purge_events = []
+
             for event in self.events[category]:
-                event_counter = event_counter + 1
-                alarm_count = alarm_count + len(self.events[category][event]['alarms'])
+
+                # Timestamps to keep
                 new_timestamps = []
+
+                # Alarms to keep
+                new_alarms = []
+
+                # Loop through every timestamp and remove ones past the limit
                 for timestamp in self.events[category][event]['timestamps']:
                     # Compare each timestamp against limit
                     if timestamp >= limit:
                         new_timestamps.append(timestamp)
-                        timestamp_counter = timestamp_counter + 1
                     else:
-                        purged_events = purged_events + 1
-                # Replace timestamps rather with new list rather than potentially performing multiple pop() operations
-                self.events[category][event]['timestamps'] = new_timestamps
+                        purged_timestamps = purged_timestamps + 1
 
-        self.logger.info("Imported %i events with %i timestamps (%i timestamps discarded due to age) with %i alarms",\
-                         event_counter, timestamp_counter, purged_events, alarm_count)
+                # Loop through every alarm and remove ones past the limit
+                for alarm in self.events[category][event]['alarms']:
+                    # Compare each alarm against limit
+                    if alarm >= limit:
+                        new_alarms.append(alarm)
+                        alarm_counter = alarm_counter + 1
+                    else:
+                        purged_alarms = purged_alarms +1
+
+                # Purge event if it has no timestamps or alarms
+                if not new_timestamps and not new_alarms:
+                    purge_events.append(event)
+
+                else:
+                    # Replace timestamps rather with new list rather than potentially performing multiple pop() operations
+                    self.events[category][event]['timestamps'] = new_timestamps
+                    self.events[category][event]['alarms'] = new_alarms
+
+                    self.logger.debug("Alert %s for key %s triggered on: %s", category, event, new_alarms)
+
+            # Track which events should be purged
+            purge_list[category] = purge_events
+
+        # Purge keys and associated events from state that are no longer needed
+        for category in purge_list:
+            for event in purge_list[category]:
+                self.logger.debug("Purging key %s in category %s", event, category)
+                self.events[category].pop(event)
+
+        # Compile statistics of internal state for debug output
+        timestamp_count = 0
+        events_count = 0
+        alarm_count = 0
+
+        # Count events and timestamps in events
+        for category in self.events:
+            for event in self.events[category]:
+                events_count = events_count + 1
+                timestamp_count = timestamp_count + len(self.events[category][event]['timestamps'])
+                alarm_count = alarm_count + len(self.events[category][event]['alarms'])
+
+        self.logger.info("Imported %i events with %i timestamps (%i timestamps and %i alerts discarded due to age) with %i alarms",\
+                         events_count, timestamp_count, purged_timestamps, purged_alarms, alarm_count)
+
+        self.logger.debug(self.events)
+
         return True
 
 class StatsParser(syslogng.LogParser):
