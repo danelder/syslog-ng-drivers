@@ -359,10 +359,10 @@ Reference configuration stanzas (of which there can be multiple in the alerts_in
     Recipient=netops@company.com,secops@company.com
     Timestamp=(\w\w\w\s+\d+\s+\d+:\d+:\d+\.\d+\s+.+?):
     User=User:(.+?)\s+|\[user:\s+(.+?)\]|Configured\s+from\s+.+?\s+by\s+(.+?)\s+
-    Keys=FULLHOST,user
+    Keys=
     High_Threshold=1
-    Time_Span=1
-    Reset_Time=1
+    Time_Span=0
+    Reset_Time=0
     Use_DNS=FULLHOST
     Template=Subject: Detected Alert: Cisco IOS Privileged Configuration Command by $USER on $FULLHOST
         Alert=Cisco IOS Privileged Configuration Command
