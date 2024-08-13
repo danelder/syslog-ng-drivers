@@ -24,7 +24,7 @@ The cloud-fanout configuration file should have 3 sections:
    2. A template to use for outgoing messages (must match a definition in the [Templates] section)
    3. A filter to use for messages (defined outside of the cloud-fanout configuration)
    4. A multiplier to use for the workers assigned to a destination to optimize performance (for higher or lower volume destinations)
-   5. Whether to create a local log (file) for the destination (useful for debug purposes but disabled in container environments) as either true or false (local_log)
+   5. Whether to create a local log (file) for the destination as either true or false (local_log)
    6. An address (or comma separated list of interfaces) to bind to. The first interface in the list which resolves to an addres (or the first address in the list) will be used if specified and if none resolve the global address will be used (0.0.0.0 by default)
    7. An comma separated list of an additional syslog-ng destination(s) (which must be defined elsewhere in your syslog-ng configuration) that logs for this configuration should be sent to
    8. Syslog-ng rewrite rule(s) (which must be defined elsewhere in your syslog-ng configuration) which should be applied to logs for this configuration
@@ -151,3 +151,5 @@ certfile - Filepath to TLS cert used for syslog listener
 tls_verify - Whether to validate the Azure Event Hub certificate or not (defaults to no)
 
 local_log_path - If set and individual source has local_log=true set, will create a local log in a new directory named after the source as an additional destination (useful for debugging). In a container environment, the path will always be under /tmp.
+
+container - If set to "true" (or a container environment is detected at runtime), disables disk buffering to minimize loss of ephemeral data
