@@ -152,4 +152,4 @@ tls_verify - Whether to validate the Azure Event Hub certificate or not (default
 
 local_log_path - If set and individual source has local_log=true set, will create a local log in a new directory named after the source as an additional destination (useful for debugging). In a container environment, the path will always be under /tmp.
 
-container - If set to "true" (or a container environment is detected at runtime), disables disk buffering to minimize loss of ephemeral data
+container - If set to "true" (or a container environment is detected at runtime), disables looking up address of NIC interface for binding to 
