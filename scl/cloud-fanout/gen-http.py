@@ -324,9 +324,9 @@ destination d_{source}-{port}-{country} {{
             if not running_in_container:
                 destinations = destinations + f"""
             disk-buf-size({confgen_disk_buf})
-            dir({confgen_disk_dir}/{source}-{port}-{country})
 """
             destinations = destinations + f"""
+            dir({confgen_disk_dir}/{source}-{port}-{country})
             mem-buf-length({confgen_mem_buf})
             reliable(no)
         )
