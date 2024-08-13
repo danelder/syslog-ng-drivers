@@ -319,10 +319,15 @@ destination d_{source}-{port}-{country} {{
         batch-bytes({confgen_batch_bytes})
         batch-timeout({confgen_batch_timeout})
         workers({int(my_workers)})
-        disk-buffer(
+        disk-buffer("""
+            # Only use disk buffers outside of container environments
+            if not running_in_container:
+                destinations = destinations + f"""
             disk-buf-size({confgen_disk_buf})
-            mem-buf-length({confgen_mem_buf})
             dir({confgen_disk_dir}/{source}-{port}-{country})
+"""
+            destinations = destinations + f"""
+            mem-buf-length({confgen_mem_buf})
             reliable(no)
         )
         headers("{confgen_headers} {country.upper()}")
