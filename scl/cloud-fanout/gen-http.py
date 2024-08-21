@@ -79,7 +79,7 @@ confgen_rcvbuf = sanitize(os.environ.get('confgen_rcvbuf', "20971520"))
 confgen_fetch_limit = sanitize(os.environ.get('confgen_fetch_limit', "10000"))
 confgen_mem_buf = sanitize(os.environ.get('confgen_mem_buf', "10000"))
 confgen_disk_buf = sanitize(os.environ.get('confgen_disk_buf', "10485760"))
-confgen_disk_dir = sanitize(os.environ.get('confgen_disk_dir', "/tmp"))
+confgen_disk_dir = sanitize(os.environ.get('confgen_disk_dir', "/opt/syslog-ng/var"))
 confgen_local_log_path = sanitize(os.environ.get('confgen_local_log_path', ""))
 confgen_container = sanitize(os.environ.get('confgen_container', ""))
 
@@ -143,10 +143,10 @@ if not running_in_container:
         if address is not False:
             global_address = address
             break
-# If we are running in a container, ensure confgen_local_log_path is set to /tmp
+# If we are running in a container, ensure confgen_local_log_path is set to /opt/syslog-ng/var
 else:
     if confgen_local_log_path != "":
-        confgen_local_log_path = "/tmp"
+        confgen_local_log_path = "/opt/syslog-ng/var"
 
 # Utilize ini style configuration files
 parser = configparser.ConfigParser()
