@@ -36,8 +36,8 @@ class DedupAlerts(object):
 
         message = MIMEMultipart()
 
-        message["From"] = self.test_recipient
-        message["To"] = self.sender
+        message["From"] = self.sender
+        message["To"] = self.test_recipient
         message["Subject"] = "Syslog-ng Dedup Alert Engine Initializing"
         message.attach( MIMEText("Please disregard this message"))
 
@@ -442,8 +442,8 @@ class DedupAlerts(object):
                         if value not in metadata:
                             error = f"{value} is not a valid field from {alert['name']} for use as a unique key in {self.alerts_ini} for {message}"
                             message = MIMEMultipart()
-                            message["From"] = self.test_recipient
-                            message["To"] = self.sender
+                            message["From"] = self.sender
+                            message["To"] = self.test_recipient
                             message["Subject"] = "Key Error in Syslog-ng Dedup Alert Engine"
                             message.attach( MIMEText(error))
                             self.email_alert(self.test_recipient, message)
@@ -464,8 +464,8 @@ class DedupAlerts(object):
                     if key == "":
                         error = f"Invalid field(s) specified for keys in {alert['name']}, please check the Keys configuration in {self.alerts_ini} for {message}"
                         message = MIMEMultipart()
-                        message["From"] = self.test_recipient
-                        message["To"] = self.sender
+                        message["From"] = self.sender
+                        message["To"] = self.test_recipient
                         message["Subject"] = "Critical Key Error in Syslog-ng Dedup Alert Engine"
                         message.attach( MIMEText(error))
                         self.email_alert(self.test_recipient, message)
