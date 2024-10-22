@@ -174,6 +174,7 @@ class DedupAlerts(object):
                     reset_time = parser.getint(configuration, "reset_time", fallback=60)
                     timestamp = parser.get(configuration, "timestamp", fallback=False)
                     timestamp_format = parser.get(configuration, "timestamp_format", fallback=False)
+                    mandatory_fields = parser.get(configuration, "mandatory_fields", fallback=False)
                     custom_field = parser.get(configuration, "custom_field", fallback=False)
 
                     # Handle required parameters
@@ -212,6 +213,7 @@ class DedupAlerts(object):
                     alert['reset_time'] = reset_time
                     alert['timestamp'] = timestamp
                     alert['timestamp_format'] = timestamp_format
+                    alert['mandatory_fields'] = mandatory_fields.lower()
 
                     # Compile regex for performance
                     pattern_regex = re.compile(pattern)
@@ -372,6 +374,18 @@ class DedupAlerts(object):
                             metadata['custom_field'] = group
                     except:
                         metadata['custom_field'] = "N/A"
+                
+                # Ensure we have all mandatory fields as part of our message
+                if alert['mandatory_fields']:
+                    for mandatory_field in alert['mandatory_fields'].split(','):
+                        try:
+                            # There was no match when searcing for this field in the message
+                            if metadata[mandatory_field] == "N/A":
+                                self.logger.debug("Ignoring log message that doesn't include %s : %s", mandatory_field, message)
+                                return self.SUCCESS
+                        except Exception as ex:
+                            self.logger.debug("Mandatory field %s is not supported for this event type (%s)", mandatory_field, alert)
+                            return self.SUCCESS
 
                 # Set metadata for syslog-ng available macros
                 metadata['LOGHOST'] = log_message['LOGHOST']
