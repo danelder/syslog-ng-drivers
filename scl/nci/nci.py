@@ -213,7 +213,10 @@ class DedupAlerts(object):
                     alert['reset_time'] = reset_time
                     alert['timestamp'] = timestamp
                     alert['timestamp_format'] = timestamp_format
-                    alert['mandatory_fields'] = mandatory_fields.lower()
+
+                    # Convert to lowercase
+                    if mandatory_fields:
+                        alert['mandatory_fields'] = mandatory_fields.lower()
 
                     # Compile regex for performance
                     pattern_regex = re.compile(pattern)
@@ -827,6 +830,11 @@ class DedupAlerts(object):
         except Exception as ex:
             self.logger.error("Error accessing state_db (%s) : %s", self.state_db, ex)
             return False
+
+        # Ensure state database isn't empty
+        if os.path.getsize(self.state_db) == 0:
+            self.logger.info("No events to load from %s", self.state_db)
+            return True
 
         # Read events from file and load them with pickle
         try:
