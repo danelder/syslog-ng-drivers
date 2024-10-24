@@ -87,9 +87,13 @@ class DedupAlerts(object):
         self.watchlist = []
         self.events = {}
 
+        # Global counters
         self.processed = 0
         self.dropped = 0
         self.total = 0
+
+        # Global variables
+        self.ignore = "N/A"
 
         # Get/set all mail related options
         self.sender = "root@localhost"
@@ -174,6 +178,7 @@ class DedupAlerts(object):
                     reset_time = parser.getint(configuration, "reset_time", fallback=60)
                     timestamp = parser.get(configuration, "timestamp", fallback=False)
                     timestamp_format = parser.get(configuration, "timestamp_format", fallback=False)
+                    mandatory_fields = parser.get(configuration, "mandatory_fields", fallback=False)
                     custom_field = parser.get(configuration, "custom_field", fallback=False)
 
                     # Handle required parameters
@@ -212,6 +217,7 @@ class DedupAlerts(object):
                     alert['reset_time'] = reset_time
                     alert['timestamp'] = timestamp
                     alert['timestamp_format'] = timestamp_format
+                    alert['mandatory_fields'] = mandatory_fields
 
                     # Compile regex for performance
                     pattern_regex = re.compile(pattern)
@@ -344,7 +350,7 @@ class DedupAlerts(object):
                             if group is not None:
                                 metadata['user'] = group
                     except:
-                        metadata['user'] = "N/A"
+                        metadata['user'] = self.ignore
 
                 # Extract and set computer from event if available
                 if "computer_regex" in alert:
@@ -353,7 +359,7 @@ class DedupAlerts(object):
                         for group in alert['computer_regex'].search(message).groups():
                             metadata['computer'] = group
                     except:
-                        metadata['computer'] = "N/A"
+                        metadata['computer'] = self.ignore
 
                 # Extract and set log_sources from event if available
                 if "log_sources_regex" in alert:
@@ -362,7 +368,7 @@ class DedupAlerts(object):
                         for group in alert['log_sources'].search(message).groups():
                             metadata['log_sources'] = group
                     except:
-                        metadata['log_sources'] = "N/A"
+                        metadata['log_sources'] = self.ignore
 
                 # Extract and set log_sources from event if available
                 if "custom_field_regex" in alert:
@@ -371,7 +377,19 @@ class DedupAlerts(object):
                         for group in alert['custom_field'].search(message).groups():
                             metadata['custom_field'] = group
                     except:
-                        metadata['custom_field'] = "N/A"
+                        metadata['custom_field'] = self.ignore
+                
+                # Ensure we have all mandatory fields as part of our message
+                if "mandatory_fields" in alert and alert['mandatory_fields']:
+                    for mandatory_field in alert['mandatory_fields'].split(','):
+                        try:
+                            # There was no match when searcing for this field in the message
+                            if metadata[mandatory_field] == self.ignore:
+                                self.logger.debug("Ignoring log message that doesn't include %s : %s", mandatory_field, message)
+                                return self.SUCCESS
+                        except Exception as ex:
+                            self.logger.debug("Mandatory field %s is not supported for this event type (%s)", mandatory_field, alert['name'])
+                            return self.SUCCESS
 
                 # Set metadata for syslog-ng available macros
                 metadata['LOGHOST'] = log_message['LOGHOST']
@@ -560,7 +578,6 @@ class DedupAlerts(object):
             if new_timestamp in new_event['alarms']:
                 #self.logger.debug(f"Duplicate event timestamp detected for {new_event}")
                 return new_event, False
-            new_event['alarms'].append(new_timestamp)
             return new_event, True
 
         # Events that should be alerted on for multiple occurrences
@@ -814,6 +831,11 @@ class DedupAlerts(object):
             self.logger.error("Error accessing state_db (%s) : %s", self.state_db, ex)
             return False
 
+        # Ensure state database isn't empty
+        if os.path.getsize(self.state_db) == 0:
+            self.logger.info("No events to load from %s", self.state_db)
+            return True
+
         # Read events from file and load them with pickle
         try:
             f = open(self.state_db, 'rb')
@@ -872,7 +894,7 @@ class DedupAlerts(object):
                     purge_events.append(event)
 
                 else:
-                    # Replace timestamps rather with new list rather than potentially performing multiple pop() operations
+                    # Replace timestamps with new list rather than potentially performing multiple pop() operations
                     self.events[category][event]['timestamps'] = new_timestamps
                     self.events[category][event]['alarms'] = new_alarms
 
@@ -884,7 +906,7 @@ class DedupAlerts(object):
         # Purge keys and associated events from state that are no longer needed
         for category in purge_list:
             for event in purge_list[category]:
-                #self.logger.debug(f"Purging key {event} in category {category}")
+                self.logger.debug(f"Purging key {event} in category {category} due to age")
                 self.events[category].pop(event)
 
         # Compile statistics of internal state for debug output
@@ -902,7 +924,7 @@ class DedupAlerts(object):
         self.logger.info("Imported %i events with %i timestamps (%i timestamps and %i alerts discarded due to age) with %i alarms",\
                          events_count, timestamp_count, purged_timestamps, purged_alarms, alarm_count)
 
-        #self.logger.debug(f"{self.events}")
+        self.logger.debug(f"Imported:\n{self.events}")
 
         return True
 
