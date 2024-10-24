@@ -87,9 +87,13 @@ class DedupAlerts(object):
         self.watchlist = []
         self.events = {}
 
+        # Global counters
         self.processed = 0
         self.dropped = 0
         self.total = 0
+
+        # Global variables
+        self.ignore = "N/A"
 
         # Get/set all mail related options
         self.sender = "root@localhost"
@@ -213,10 +217,7 @@ class DedupAlerts(object):
                     alert['reset_time'] = reset_time
                     alert['timestamp'] = timestamp
                     alert['timestamp_format'] = timestamp_format
-
-                    # Convert to lowercase
-                    if mandatory_fields:
-                        alert['mandatory_fields'] = mandatory_fields.lower()
+                    alert['mandatory_fields'] = mandatory_fields
 
                     # Compile regex for performance
                     pattern_regex = re.compile(pattern)
@@ -349,7 +350,7 @@ class DedupAlerts(object):
                             if group is not None:
                                 metadata['user'] = group
                     except:
-                        metadata['user'] = "N/A"
+                        metadata['user'] = self.ignore
 
                 # Extract and set computer from event if available
                 if "computer_regex" in alert:
@@ -358,7 +359,7 @@ class DedupAlerts(object):
                         for group in alert['computer_regex'].search(message).groups():
                             metadata['computer'] = group
                     except:
-                        metadata['computer'] = "N/A"
+                        metadata['computer'] = self.ignore
 
                 # Extract and set log_sources from event if available
                 if "log_sources_regex" in alert:
@@ -367,7 +368,7 @@ class DedupAlerts(object):
                         for group in alert['log_sources'].search(message).groups():
                             metadata['log_sources'] = group
                     except:
-                        metadata['log_sources'] = "N/A"
+                        metadata['log_sources'] = self.ignore
 
                 # Extract and set log_sources from event if available
                 if "custom_field_regex" in alert:
@@ -376,19 +377,21 @@ class DedupAlerts(object):
                         for group in alert['custom_field'].search(message).groups():
                             metadata['custom_field'] = group
                     except:
-                        metadata['custom_field'] = "N/A"
+                        metadata['custom_field'] = self.ignore
                 
                 # Ensure we have all mandatory fields as part of our message
-                if alert['mandatory_fields']:
+                if "mandatory_fields" in alert:
                     for mandatory_field in alert['mandatory_fields'].split(','):
                         try:
                             # There was no match when searcing for this field in the message
-                            if metadata[mandatory_field] == "N/A":
+                            if metadata[mandatory_field] == self.ignore:
                                 self.logger.debug("Ignoring log message that doesn't include %s : %s", mandatory_field, message)
                                 return self.SUCCESS
                         except Exception as ex:
-                            self.logger.debug("Mandatory field %s is not supported for this event type (%s)", mandatory_field, alert)
+                            self.logger.debug("Mandatory field %s is not supported for this event type (%s)", mandatory_field, alert['name'])
                             return self.SUCCESS
+                else:
+                    self.logger.debug("%s does not have mandatory fields", alert['name'])
 
                 # Set metadata for syslog-ng available macros
                 metadata['LOGHOST'] = log_message['LOGHOST']
