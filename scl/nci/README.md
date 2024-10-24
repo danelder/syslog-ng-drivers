@@ -200,6 +200,8 @@ keys - A comma separated list of extracted variable(s) that are used to uniquely
 
 use_dns - An optional comma separated list of fields to perform reverse DNS lookups on and substitute for in the email message (default is none)
 
+mandatory_fields - An optional comma separated list of fields (user,computer,log_sources, and/or custom_field) that are required to be detected in a message or else it will be disacarded (default is none)
+
 template - The email template to be used when an alert is triggered including variable substitutions (mandatory)
 
 high_threshold - The number of events at which an alert should be triggered (default is 1)
@@ -373,6 +375,29 @@ Reference configuration stanzas (of which there can be multiple in the alerts_in
         Detection Time=$ALERT_TIME
         Container/Group Being Monitored=CiscoIOS
         Alert Recipients=$RECIPIENT
+
+# INFO AUDIT_TRAIL|Centrify Suite|PAM|1.0|103|PAM authentication denied|5|user=delder(type:ad,delder@localhost) pid=3249391 utc=1729107984201 centrifyEventID=24103 DASessID=N/A DAInst=N/A status=DENIED service=sshd tty=ssh client=127.0.0.1 reason=Authentication failure MfaRequired=false EntityName=localhost.org\test1
+# pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=127.0.0.1 user=admin@domain#mydomain.org@testprd
+# pam_unix(su-l:auth): authentication failure; logname=uid1234_adm uid=1024002485 euid=0 tty=pts/36 ruser=uid1234_adm rhost= user=admin
+[Unix_Authentication_Failure]
+Pattern=[A-a]uthentication [failure|denied]
+Recipient=delder@novacaost.com
+User=\s+ruser=(\S+)|\s+user=(\S+)|\|user=(\S+)\(
+Keys=FULLHOST,user
+High_Threshold=1
+Time_Span=60
+Reset_Time=3600
+Use_DNS=FULLHOST
+Mandatory_Fields=user
+Template=Subject: Detected Alert: Unix failed authentication for $USER on $FULLHOST
+    Alert=Unix failed authentication
+    Device=$FULLHOST
+    User=$USER
+    Message=$LOG
+    Appliance Detecting Alert=$LOGHOST
+    Detection Time=$ALERT_TIME
+    Container/Group Being Monitored=Unix
+    Alert Recipients=$RECIPIENT
 
 In the email template configuration, the following substitutions are available which will replace the variable before sending the message:
 
