@@ -380,7 +380,7 @@ class DedupAlerts(object):
                         metadata['custom_field'] = self.ignore
                 
                 # Ensure we have all mandatory fields as part of our message
-                if "mandatory_fields" in alert:
+                if "mandatory_fields" in alert and alert['mandatory_fields']:
                     for mandatory_field in alert['mandatory_fields'].split(','):
                         try:
                             # There was no match when searcing for this field in the message
@@ -390,8 +390,6 @@ class DedupAlerts(object):
                         except Exception as ex:
                             self.logger.debug("Mandatory field %s is not supported for this event type (%s)", mandatory_field, alert['name'])
                             return self.SUCCESS
-                else:
-                    self.logger.debug("%s does not have mandatory fields", alert['name'])
 
                 # Set metadata for syslog-ng available macros
                 metadata['LOGHOST'] = log_message['LOGHOST']
