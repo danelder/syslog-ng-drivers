@@ -578,7 +578,6 @@ class DedupAlerts(object):
             if new_timestamp in new_event['alarms']:
                 #self.logger.debug(f"Duplicate event timestamp detected for {new_event}")
                 return new_event, False
-            new_event['alarms'].append(new_timestamp)
             return new_event, True
 
         # Events that should be alerted on for multiple occurrences
@@ -895,7 +894,7 @@ class DedupAlerts(object):
                     purge_events.append(event)
 
                 else:
-                    # Replace timestamps rather with new list rather than potentially performing multiple pop() operations
+                    # Replace timestamps with new list rather than potentially performing multiple pop() operations
                     self.events[category][event]['timestamps'] = new_timestamps
                     self.events[category][event]['alarms'] = new_alarms
 
@@ -907,7 +906,7 @@ class DedupAlerts(object):
         # Purge keys and associated events from state that are no longer needed
         for category in purge_list:
             for event in purge_list[category]:
-                #self.logger.debug(f"Purging key {event} in category {category}")
+                self.logger.debug(f"Purging key {event} in category {category} due to age")
                 self.events[category].pop(event)
 
         # Compile statistics of internal state for debug output
@@ -925,7 +924,7 @@ class DedupAlerts(object):
         self.logger.info("Imported %i events with %i timestamps (%i timestamps and %i alerts discarded due to age) with %i alarms",\
                          events_count, timestamp_count, purged_timestamps, purged_alarms, alarm_count)
 
-        #self.logger.debug(f"{self.events}")
+        self.logger.debug(f"Imported:\n{self.events}")
 
         return True
 
