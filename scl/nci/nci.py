@@ -179,6 +179,8 @@ class DedupAlerts(object):
                     timestamp = parser.get(configuration, "timestamp", fallback=False)
                     timestamp_format = parser.get(configuration, "timestamp_format", fallback=False)
                     mandatory_fields = parser.get(configuration, "mandatory_fields", fallback=False)
+                    hosts = parser.get(configuration, "hosts", fallback=False)
+                    not_hosts = parser.get(configuration, "not_hosts", fallback=False)
                     custom_field = parser.get(configuration, "custom_field", fallback=False)
 
                     # Handle required parameters
@@ -218,6 +220,8 @@ class DedupAlerts(object):
                     alert['timestamp'] = timestamp
                     alert['timestamp_format'] = timestamp_format
                     alert['mandatory_fields'] = mandatory_fields
+                    alert['hosts'] = hosts
+                    alert['not_hosts'] = not_hosts
 
                     # Compile regex for performance
                     pattern_regex = re.compile(pattern)
@@ -240,6 +244,12 @@ class DedupAlerts(object):
                     if custom_field:
                         custom_field_regex = re.compile(custom_field)
                         alert['custom_field_regex'] = custom_field_regex
+                    if hosts:
+                        hosts_regex = re.compile(hosts)
+                        alert['hosts_regex'] = hosts_regex
+                    if not_hosts:
+                        not_hosts_regex = re.compile(not_hosts)
+                        alert['not_hosts_regex'] = not_hosts_regex
 
                     # Add this alert to the global watchlist
                     self.logger.debug("Adding %s (%s) to monitored alerts", configuration, pattern)
@@ -317,6 +327,7 @@ class DedupAlerts(object):
         # Set values from log_message
         syslog_timestamp = log_message['S_ISODATE']
         message = log_message['MESSAGE']
+        syslog_host = log_message['FULLHOST']
 
         # Message hasn't been filtered out
         filtered = False
@@ -326,6 +337,8 @@ class DedupAlerts(object):
             syslog_timestamp = syslog_timestamp.decode("utf-8")
         if isinstance(message, bytes):
             message = message.decode("utf-8")
+        if isinstance(syslog_host, bytes):
+            syslog_host = syslog_host.decode("utf-8")
 
         # Check every alert in the watchlist against this log
         for alert in self.watchlist:
@@ -337,6 +350,20 @@ class DedupAlerts(object):
                 if "filter_pattern_regex" in alert and alert['filter_pattern_regex'].search(message):
                     # Ignore this log message
                     filtered = True
+                    break
+
+                # Check for matching hosts pattern 
+                if "hosts_regex" in alert and alert['hosts_regex'].search(syslog_host):
+                    # Ignore this log message
+                    filtered = True
+                    self.logger.debug("Skipping %s for host %s due to matching hosts filter", message, syslog_host)
+                    break
+
+                # Check for negative matching hosts pattern 
+                if "not_hosts_regex" in alert and alert['not_hosts_regex'].search(syslog_host):
+                    # Ignore this log message
+                    filtered = True
+                    self.logger.debug("Skipping %s for host %s due to matching not_hosts filter", message, syslog_host)
                     break
 
                 # Create new metadata object
