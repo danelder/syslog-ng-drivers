@@ -200,6 +200,10 @@ keys - A comma separated list of extracted variable(s) that are used to uniquely
 
 use_dns - An optional comma separated list of fields to perform reverse DNS lookups on and substitute for in the email message (default is none)
 
+hosts - An optional regex to match against the $HOST macro so that only specific hosts will generate an alert
+
+not_hosts - An optional regex to match against the $HOST macro so that specific hosts will not generate an alert
+
 mandatory_fields - An optional comma separated list of fields (user,computer,log_sources, and/or custom_field) that are required to be detected in a message or else it will be disacarded (default is none)
 
 template - The email template to be used when an alert is triggered including variable substitutions (mandatory)
@@ -296,6 +300,8 @@ Reference configuration stanzas (of which there can be multiple in the alerts_in
     High_Threshold=1
     Time_Span=60
     Reset_Time=3600
+    Hosts=criticalhost[\d+]\.*
+    Not_Hosts=.*dev.*
     Template=Subject: Detected Alert: Cisco IOS EIGRP Peer Graceful-restart for Device $SOURCEIP
         Alert=Cisco IOS EIGRP Peer Graceful-restart
         Device=$SOURCEIP
