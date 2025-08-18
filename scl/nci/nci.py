@@ -250,9 +250,11 @@ class DedupAlerts(object):
                     if hosts:
                         hosts_regex = re.compile(hosts)
                         alert['hosts_regex'] = hosts_regex
+                        self.logger.debug("Will only alert on hosts matching %s", hosts)
                     if not_hosts:
                         not_hosts_regex = re.compile(not_hosts)
                         alert['not_hosts_regex'] = not_hosts_regex
+                        self.logger.debug("Will not alert on hosts matching %s", not_hosts)
 
                     # Add this alert to the global watchlist
                     self.logger.debug("Adding %s (%s) to monitored alerts", configuration, pattern)
@@ -464,7 +466,7 @@ class DedupAlerts(object):
                                     # Valid timestamp found, no need to search for more
                                     break
                         else:
-                            self.logger.debug("No matching timestamps found %s", message)
+                            self.logger.debug("No matching timestamps found %s from %s", message, metadata['FULLHOST_FROM'])
 
                     except Exception as ex:
                         self.logger.debug("Invalid timestamp (%s) in %s : %s", raw_timestamp, message, ex)
