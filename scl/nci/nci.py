@@ -186,10 +186,13 @@ class DedupAlerts(object):
                     # Handle required parameters
                     if not pattern:
                         self.logger.critical("pattern is a required parameter for %s", configuration)
+                        return False
                     if not recipient:
                         self.logger.critical("recipient is a required parameter for %s", configuration)
+                        return False
                     if not template:
                         self.logger.critical("template is a required parameter for %s", configuration)
+                        return False
 
                     # Don't let slow/broken DNS break the driver
                     if use_dns:
